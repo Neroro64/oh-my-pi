@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Vendored [`pi-rtk-optimizer`](https://github.com/MasuRii/pi-rtk-optimizer) v0.7.1 (MIT, by [@MasuRii](https://github.com/MasuRii)) as a first-party built-in extension. The `/rtk` command, bash command rewriting, and tool-output compaction now ship in-binary and require no separate `bun install`. Built-ins register after on-disk discovery and supersede same-named installed plugins; disable via `disabledExtensions: [extension-module:pi-rtk-optimizer]` to fall back to the marketplace copy. Config still lives at `~/.omp/agent/extensions/pi-rtk-optimizer/config.json`.
+
 ## [15.0.2] - 2026-05-15
 
 ### Added
