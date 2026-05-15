@@ -45,14 +45,17 @@ async function saveBashOriginalArtifact(session: ToolSession, originalText: stri
 }
 
 const bashSchemaBase = Type.Object({
-	command: Type.String({ description: "command to execute", examples: ["ls -la", "echo hi"] }),
+	command: Type.String({
+		description: "PowerShell command to execute directly",
+		examples: ["Get-ChildItem", "$env:PATH"],
+	}),
 	env: Type.Optional(
 		Type.Record(Type.String({ pattern: BASH_ENV_NAME_PATTERN.source }), Type.String(), {
-			description: "extra env vars",
+			description: "extra environment variables",
 		}),
 	),
 	timeout: Type.Optional(Type.Number({ description: "timeout in seconds", default: 300 })),
-	cwd: Type.Optional(Type.String({ description: "working directory", examples: ["src/", "/tmp"] })),
+	cwd: Type.Optional(Type.String({ description: "working directory", examples: ["src/", "C:/tmp"] })),
 
 	pty: Type.Optional(
 		Type.Boolean({
@@ -230,14 +233,83 @@ function formatTimeoutClampNotice(requestedTimeoutSec: number, effectiveTimeoutS
 		: undefined;
 }
 
+interface ShellToken {
+	value: string;
+	end: number;
+	quote?: "'" | '"';
+}
+
+function readShellToken(command: string, start: number): ShellToken | undefined {
+	let index = start;
+	while (index < command.length && /\s/u.test(command[index]!)) index++;
+	if (index >= command.length) return undefined;
+
+	const quote = command[index];
+	if (quote === "'" || quote === '"') {
+		let value = "";
+		index++;
+		for (; index < command.length; index++) {
+			const char = command[index]!;
+			const next = command[index + 1];
+			if (quote === "'" && char === "'" && next === "'") {
+				value += "'";
+				index++;
+				continue;
+			}
+			if (quote === '"' && char === "`" && next !== undefined) {
+				value += next;
+				index++;
+				continue;
+			}
+			if (char === quote) return { value, end: index + 1, quote };
+			value += char;
+		}
+		return undefined;
+	}
+
+	const valueStart = index;
+	while (index < command.length && !/\s/u.test(command[index]!)) index++;
+	return { value: command.slice(valueStart, index), end: index };
+}
+
+function isPowerShellExecutable(token: string): boolean {
+	const basename = token.replace(/\\/gu, "/").split("/").pop()?.toLowerCase();
+	const executable = basename?.endsWith(".exe") ? basename.slice(0, -4) : basename;
+	return executable === "pwsh" || executable === "powershell";
+}
+
+export function unwrapNestedPowerShellCommand(command: string): string {
+	const executable = readShellToken(command, 0);
+	if (!executable || !isPowerShellExecutable(executable.value)) return command;
+
+	const option = readShellToken(command, executable.end);
+	if (!option) return command;
+
+	const normalizedOption = option.value.toLowerCase();
+	if (normalizedOption === "--%" || normalizedOption === "-file") return command;
+	if (normalizedOption !== "-command" && normalizedOption !== "-c") return command;
+
+	const script = command.slice(option.end).trimStart();
+	if (!script) return command;
+
+	const firstScriptToken = readShellToken(script, 0);
+	if (firstScriptToken?.quote) {
+		const trailing = script.slice(firstScriptToken.end).trim();
+		return trailing.length === 0 ? firstScriptToken.value : command;
+	}
+
+	return script;
+}
+
 /**
- * Bash tool implementation.
+ * PowerShell tool implementation.
  *
- * Executes bash commands with optional timeout and working directory.
+ * Executes PowerShell commands with optional timeout and working directory.
  */
 export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 	readonly name = "bash";
-	readonly label = "Bash";
+	readonly customWireName = "pwsh";
+	readonly label = "PowerShell";
 	readonly loadMode = "essential";
 	readonly description: string;
 	readonly parameters: BashToolSchema;
@@ -485,7 +557,7 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 		let command = rawCommand;
 		const env = normalizeBashEnv(rawEnv);
 
-		// Apply conservative bash fixups (strip trailing `| head|tail` and redundant
+		// Apply conservative shell fixups (strip trailing `| head|tail` and redundant
 		// `2>&1`). The helper is single-line only and refuses anything that could
 		// change semantics.
 		let bashFixups: string[] = [];
@@ -507,8 +579,10 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 				command = command.slice(cdMatch[0].length);
 			}
 		}
+		command = unwrapNestedPowerShellCommand(command);
+
 		if (asyncRequested && !this.#asyncEnabled) {
-			throw new ToolError("Async bash execution is disabled. Enable async.enabled to use async mode.");
+			throw new ToolError("Async PowerShell execution is disabled. Enable async.enabled to use async mode.");
 		}
 
 		// Check both the original command and the cwd-normalized command so
@@ -916,7 +990,7 @@ export function formatBashCommand(args: BashRenderArgs): string {
 }
 
 /**
- * Returns the bash command formatted for the result body: the dim `$ cd … &&`
+ * Returns the PowerShell command formatted for the result body: the dim `$ cd … &&`
  * prefix joined with syntax-highlighted command lines. The prefix is applied
  * only to the first line so multi-line commands display cleanly — terminals
  * reset SGR state at line boundaries, which made the previous single-string

@@ -13,6 +13,7 @@ import {
 import type { Terminal as XtermTerminalType } from "@xterm/headless";
 import xterm from "@xterm/headless";
 import { Settings } from "../config/settings";
+import { commandForHostShell } from "../exec/bash-executor";
 import { NON_INTERACTIVE_ENV } from "../exec/non-interactive-env";
 import type { Theme } from "../modes/theme/theme";
 import { OutputSink, type OutputSummary } from "../session/streaming-output";
@@ -353,7 +354,7 @@ export async function runInteractiveBashPty(
 			void session
 				.start(
 					{
-						command: options.command,
+						command: commandForHostShell(options.command),
 						cwd: options.cwd,
 						timeoutMs: options.timeoutMs,
 						env: {

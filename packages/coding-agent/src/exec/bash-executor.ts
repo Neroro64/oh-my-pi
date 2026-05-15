@@ -77,6 +77,15 @@ export function buildMinimizerOptions(group: ShellMinimizerSettings): MinimizerO
 	};
 }
 
+function encodePowerShellCommand(command: string): string {
+	return Buffer.from(command, "utf16le").toString("base64");
+}
+
+export function commandForHostShell(command: string): string {
+	if (process.platform !== "win32") return command;
+	return `pwsh -NoLogo -NoProfile -NonInteractive -EncodedCommand ${encodePowerShellCommand(command)}`;
+}
+
 export async function executeBash(command: string, options?: BashExecutorOptions): Promise<BashResult> {
 	const settings = await Settings.init();
 	const { shell, env: shellEnv, prefix } = settings.getShellConfig();
@@ -87,8 +96,11 @@ export async function executeBash(command: string, options?: BashExecutorOptions
 	const commandCwd = await resolveShellCwd(options?.cwd);
 	const commandEnv = options?.env ? { ...NON_INTERACTIVE_ENV, ...options.env } : NON_INTERACTIVE_ENV;
 
-	// Apply command prefix if configured
-	const prefixedCommand = prefix ? `${prefix} ${command}` : command;
+	// On Windows the model-facing shell is PowerShell, but the native session host
+	// still uses the configured POSIX shell transport. Encode the direct command so
+	// Bash cannot expand PowerShell variables such as `$env:NAME` before pwsh sees them.
+	const hostCommand = commandForHostShell(command);
+	const prefixedCommand = prefix ? `${prefix} ${hostCommand}` : hostCommand;
 	const finalCommand = prefixedCommand;
 
 	// Create output sink for truncation and artifact handling

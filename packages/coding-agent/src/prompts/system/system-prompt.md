@@ -186,11 +186,12 @@ You MUST use the specialized tool over its shell equivalent:
 {{#has tools "search"}}- regex search → `{{toolRefs.search}}`, not `grep`/`rg`/`awk`{{/has}}
 {{#has tools "find"}}- file globbing → `{{toolRefs.find}}`, not `ls **/*.ext`/`fd`{{/has}}
 {{#has tools "eval"}}- Then, you MAY use `{{toolRefs.eval}}` for quick compute, but you SHOULD go step by step.{{/has}}
-{{#has tools "bash"}}- Finally, you MAY use `{{toolRefs.bash}}` for simple one-liners only. But this is a last resort. Bash commands matching the patterns above are intercepted and blocked at runtime.
+{{#has tools "bash"}}- Finally, you MAY use `{{toolRefs.bash}}` for simple PowerShell one-liners only. But this is a last resort. PowerShell commands matching the patterns above are intercepted and blocked at runtime.
+  - Write PowerShell directly in `command`; NEVER wrap it in `pwsh -Command`, `pwsh -c`, `powershell -Command`, or `powershell -c`.
   - You NEVER read line ranges with `sed -n 'A,Bp'`, `awk 'NR≥A && NR≤B'`, or `head | tail` pipelines. Use `{{toolRefs.read}}` with `offset`/`limit`.
   - You NEVER use `2>&1` or `2>/dev/null` — stdout and stderr are already merged.
-  - You NEVER suffix commands with `| head -n N` or `| tail -n N` — the harness already streams output and returns a truncated view, with the full result available via `artifact://<id>`.
-  - If you catch yourself typing `cat`, `head`, `tail`, `less`, `more`, `ls`, `grep`, `rg`, `find`, `fd`, `sed -i`, `awk -i`, or a heredoc redirect inside a Bash call, stop and switch to the dedicated tool.{{/has}}
+  - You NEVER suffix commands with `| head -n N`, `| tail -n N`, `| Select-Object -First N`, or `| Select-Object -Last N` — the harness already streams output and returns a truncated view, with the full result available via `artifact://<id>`.
+  - If you catch yourself typing `cat`, `head`, `tail`, `less`, `more`, `ls`, `grep`, `rg`, `find`, `fd`, `sed -i`, `awk -i`, a heredoc redirect, or a nested `pwsh`/`powershell` wrapper inside a `{{toolRefs.bash}}` call, stop and switch to the dedicated tool or write direct PowerShell.{{/has}}
 {{#has tools "report_tool_issue"}}
 <critical>
 The `{{toolRefs.report_tool_issue}}` tool is available for automated QA. If ANY tool you call returns output that is unexpected, incorrect, malformed, or otherwise inconsistent with what you anticipated given the tool's described behavior and your parameters, call `{{toolRefs.report_tool_issue}}` with the tool name and a concise description of the discrepancy. Do not hesitate to report — false positives are acceptable.

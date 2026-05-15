@@ -1,12 +1,12 @@
 /**
- * Conservative transforms applied to a bash command before execution.
+ * Conservative transforms applied to a shell command before execution.
  *
  * Two fixups are applied, each anchored to the end of a top-level segment
  * (segments split on `;`, `&&`, `||`, and background `&`):
  *
  *  1. Trailing `| head [args]` / `| tail [args]` (and the `|&` variant) — these
  *     pipes exist purely to limit output length. The harness already truncates
- *     bash output and exposes the full result via an artifact, so they only
+ *     shell output and exposes the full result via an artifact, so they only
  *     hide content the agent wanted.
  *
  *  2. A redundant trailing `2>&1` left on a segment that has no remaining pipe
@@ -19,7 +19,7 @@
  * `pi_shell::fixup`, driven by the real `brush-parser` AST. This module is a
  * thin sync wrapper plus user-facing notice formatting.
  */
-import { applyBashFixups as nativeApplyBashFixups } from "@oh-my-pi/pi-natives";
+import * as nativeBindings from "@oh-my-pi/pi-natives";
 
 export interface BashFixupResult {
 	/** Possibly-rewritten command. */
@@ -28,12 +28,15 @@ export interface BashFixupResult {
 	stripped: string[];
 }
 
+const nativeApplyBashFixups = (nativeBindings as { applyBashFixups?: (command: string) => BashFixupResult })
+	.applyBashFixups;
+
 /**
- * Apply both fixups to a bash command. On any parse failure, multi-line input,
- * or no-op transform, returns the input verbatim with `stripped: []`.
+ * Apply both fixups to a shell command. On any parse failure, multi-line input,
+ * missing native support, or no-op transform, returns the input verbatim with `stripped: []`.
  */
 export function applyBashFixups(command: string): BashFixupResult {
-	return nativeApplyBashFixups(command);
+	return typeof nativeApplyBashFixups === "function" ? nativeApplyBashFixups(command) : { command, stripped: [] };
 }
 
 /**
@@ -43,5 +46,5 @@ export function applyBashFixups(command: string): BashFixupResult {
 export function formatBashFixupNotice(stripped: readonly string[]): string | undefined {
 	if (!stripped.length) return undefined;
 	const quoted = stripped.map(s => `\`${s}\``).join(", ");
-	return `<system-warning>Stripped redundant ${quoted} — bash output is already truncated and stderr is already merged into stdout. NEVER use these patterns.</system-warning>`;
+	return `<system-warning>Stripped redundant ${quoted} — shell output is already truncated and stderr is already merged into stdout. NEVER use these patterns.</system-warning>`;
 }

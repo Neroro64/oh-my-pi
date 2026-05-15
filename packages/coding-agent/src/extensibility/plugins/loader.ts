@@ -261,12 +261,21 @@ export async function getAllPluginCommandPaths(cwd: string): Promise<string[]> {
 
 /**
  * Get all extension module paths from all enabled plugins.
+ *
+ * `excludedPluginNames` filters out plugins whose extensions are provided by a
+ * built-in (see `builtin-extensions/`). Filtering happens here instead of at
+ * the discovery layer so disabled installed plugins are still skipped while
+ * marketplace metadata (lockfiles, settings) remains untouched.
  */
-export async function getAllPluginExtensionPaths(cwd: string): Promise<string[]> {
+export async function getAllPluginExtensionPaths(
+	cwd: string,
+	excludedPluginNames?: ReadonlySet<string>,
+): Promise<string[]> {
 	const plugins = await getEnabledPlugins(cwd);
 	const paths: string[] = [];
 
 	for (const plugin of plugins) {
+		if (excludedPluginNames?.has(plugin.name)) continue;
 		paths.push(...resolvePluginExtensionPaths(plugin));
 	}
 

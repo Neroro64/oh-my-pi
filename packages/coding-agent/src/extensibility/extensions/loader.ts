@@ -10,6 +10,7 @@ import type { KeyId } from "@oh-my-pi/pi-tui";
 import { hasFsCode, isEacces, isEnoent, logger } from "@oh-my-pi/pi-utils";
 import type { TSchema } from "@sinclair/typebox";
 import * as TypeBox from "@sinclair/typebox";
+import { getActiveBuiltinExtensions, getSupersededPluginPackages } from "../../builtin-extensions";
 import { type ExtensionModule, extensionModuleCapability } from "../../capability/extension-module";
 import { loadCapability } from "../../discovery";
 import { getExtensionNameFromPath } from "../../discovery/helpers";
@@ -512,9 +513,10 @@ export async function discoverAndLoadExtensions(
 		addPath(ext.path);
 	}
 
-	// 2. Discover extension entry points from installed plugins
-	addPaths(await getAllPluginExtensionPaths(cwd));
-
+	// 2. Discover extension entry points from installed plugins, skipping
+	//    packages whose extensions are already provided by an active built-in.
+	const supersededPluginNames = getSupersededPluginPackages(disabled);
+	addPaths(await getAllPluginExtensionPaths(cwd, supersededPluginNames));
 	// 3. Explicitly configured paths
 	for (const configuredPath of configuredPaths) {
 		const resolved = resolvePath(configuredPath, cwd);
@@ -543,5 +545,30 @@ export async function discoverAndLoadExtensions(
 		addPath(resolved);
 	}
 
-	return loadExtensions(allPaths, cwd, eventBus);
+	// 4. Load built-in extensions (vendored, in-binary). These run AFTER disk
+	//    discovery so their command/event handlers register last and take
+	//    precedence over an installed plugin's stale copy if both happen to
+	//    load (e.g. user disabled the built-in but kept the marketplace one
+	//    after re-enabling — the supersession filter above prevents that case).
+	const resolvedEventBus = eventBus ?? new EventBus();
+	const loaded = await loadExtensions(allPaths, cwd, resolvedEventBus);
+	for (const builtin of getActiveBuiltinExtensions(disabled)) {
+		try {
+			const extension = await loadExtensionFromFactory(
+				builtin.factory,
+				cwd,
+				resolvedEventBus,
+				loaded.runtime,
+				`builtin:${builtin.name}`,
+			);
+			loaded.extensions.push(extension);
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			loaded.errors.push({
+				path: `builtin:${builtin.name}`,
+				error: `Failed to load built-in extension: ${message}`,
+			});
+		}
+	}
+	return loaded;
 }

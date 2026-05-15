@@ -155,7 +155,7 @@ async function resolveInternalUrlToPath(
 	const url = normalizeLocalScheme(rawUrl);
 	const scheme = extractScheme(url);
 	if (!scheme) {
-		throw new ToolError(`Unsupported internal URL in bash command: ${url}`);
+		throw new ToolError(`Unsupported internal URL in shell command: ${url}`);
 	}
 
 	if (scheme === "skill") {
@@ -165,7 +165,7 @@ async function resolveInternalUrlToPath(
 	if (scheme === "local") {
 		if (!localOptions) {
 			throw new ToolError(
-				"Cannot resolve local:// URL in bash command: local protocol options are unavailable for this session.",
+				"Cannot resolve local:// URL in shell command: local protocol options are unavailable for this session.",
 			);
 		}
 		const resolvedLocalPath = resolveLocalUrlToPath(url, localOptions);
@@ -177,7 +177,7 @@ async function resolveInternalUrlToPath(
 
 	if (!internalRouter?.canHandle(url)) {
 		throw new ToolError(
-			`Cannot resolve ${scheme}:// URL in bash command: ${url}\n` +
+			`Cannot resolve ${scheme}:// URL in shell command: ${url}\n` +
 				"Internal URL router is unavailable for this protocol in the current session.",
 		);
 	}
@@ -187,18 +187,20 @@ async function resolveInternalUrlToPath(
 		resource = await internalRouter.resolve(url);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		throw new ToolError(`Failed to resolve ${scheme}:// URL in bash command: ${url}\n${message}`);
+		throw new ToolError(`Failed to resolve ${scheme}:// URL in shell command: ${url}\n${message}`);
 	}
 
 	if (!resource.sourcePath) {
-		throw new ToolError(`${scheme}:// URL resolved without a filesystem path and cannot be used in bash: ${url}`);
+		throw new ToolError(
+			`${scheme}:// URL resolved without a filesystem path and cannot be used in shell command: ${url}`,
+		);
 	}
 
 	return path.resolve(resource.sourcePath);
 }
 
 /**
- * Expand all skill:// URIs in a bash command string.
+ * Expand all skill:// URIs in a shell command string.
  * Returns the command with URIs replaced by shell-escaped absolute paths.
  * Throws ToolError if any URI cannot be resolved.
  */
@@ -215,7 +217,7 @@ export function expandSkillUrls(command: string, skills: readonly Skill[]): stri
 }
 
 /**
- * Expand supported internal URLs in a bash command string to shell-escaped absolute paths.
+ * Expand supported internal URLs in a shell command string to shell-escaped absolute paths.
  * Supported schemes: skill://, agent://, artifact://, memory://, rule://, local://
  */
 export async function expandInternalUrls(command: string, options: InternalUrlExpansionOptions): Promise<string> {
