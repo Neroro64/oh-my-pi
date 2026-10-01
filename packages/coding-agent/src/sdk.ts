@@ -89,7 +89,8 @@ import { initializeWithSettings } from "./discovery";
 import { setInvocationConfiguredExtensions, withOmpExtensionRootScope } from "./discovery/omp-extension-roots";
 import { disposeVmContextsByOwner } from "./eval/js/context-manager";
 import { getEnabledEvalPreludes, type EvalPreludeDefinition } from "./eval/preludes";
-import { disposeAllKernelSessions, disposeKernelSessionsByOwner } from "./eval/py/executor";
+import { disposeKernelSessionsByOwner, disposeAllKernelSessions } from "./eval/py/executor";
+import { disposeAllPwshSessions, disposePwshSessionsByOwner } from "./eval/pwsh/executor";
 import { defaultEvalSessionId } from "./eval/session-id";
 import type { EditMode } from "@oh-my-pi/pi-tui/tools/edit";
 import {
@@ -1312,6 +1313,7 @@ function registerEvalCleanup(): void {
 	if (evalCleanupRegistered) return;
 	evalCleanupRegistered = true;
 	postmortem.register("python-cleanup", disposeAllKernelSessions);
+	postmortem.register("pwsh-cleanup", disposeAllPwshSessions);
 }
 
 export function customToolToDefinition(tool: CustomTool, sourcePath?: string): ToolDefinition {
@@ -5245,6 +5247,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 				}
 				await releaseComputerSessionsForOwner(evalKernelOwnerId);
 				await disposeKernelSessionsByOwner(evalKernelOwnerId);
+				await disposePwshSessionsByOwner(evalKernelOwnerId);
 				await disposeVmContextsByOwner(evalKernelOwnerId);
 				if (ownsAuthStorage) authStorage.close();
 			}

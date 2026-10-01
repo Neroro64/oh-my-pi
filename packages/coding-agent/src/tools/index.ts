@@ -668,7 +668,7 @@ export async function resolveBuiltinToolPlan(session: ToolSession, toolNames?: s
 	const effectivePythonAllowed = allowPython && pythonAvailable;
 	// Eval is exposed whenever any backend is reachable. A backend may be
 	// unreachable, in which case eval dispatches exclusively to the others.
-	const allowEval = effectivePythonAllowed || allowJs;
+	const allowEval = effectivePythonAllowed || allowJs || backends.pwsh;
 
 	// Checkpoint and rewind are a pair: listing one without the other strands
 	// the agent (it can checkpoint but not rewind, or vice versa). Auto-include

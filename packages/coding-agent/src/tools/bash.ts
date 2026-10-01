@@ -612,7 +612,7 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 				(this.session.skillHintVisible ??
 					(cfgSkillful.get(this.session.settings) && (this.session.skills?.length ?? 0) > 0)) === true,
 			hasLaunch: this.#launchEnabled,
-			hasEval: isToolActive("eval", evalBackends.python || evalBackends.js),
+			hasEval: isToolActive("eval", evalBackends.python || evalBackends.js || evalBackends.pwsh),
 			hasShellBuiltins: !shellBuiltinsDisabled(this.session.settings),
 			isWindows: process.platform === "win32",
 		});

@@ -8,6 +8,7 @@ import {
 	executePython as executePythonCommand,
 	type PythonResult,
 } from "../eval/py/executor";
+import { disposePwshSessionsByOwner } from "../eval/pwsh/executor";
 import { defaultEvalSessionId } from "../eval/session-id";
 import type { ExtensionRunner } from "../extensibility/extensions";
 import type { ToolSession } from "../tools";
@@ -174,6 +175,7 @@ export class EvalRunner {
 		}
 		const results = await Promise.allSettled([
 			disposeKernelSessionsByOwner(this.#kernelOwnerId),
+			disposePwshSessionsByOwner(this.#kernelOwnerId),
 			disposeVmContextsByOwner(this.#kernelOwnerId),
 		]);
 		const errors: unknown[] = [];

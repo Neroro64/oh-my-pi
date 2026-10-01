@@ -31,6 +31,19 @@ export const cfgEvalJs = register({
 	},
 });
 
+export const cfgEvalPwsh = register({
+	id: "eval.pwsh",
+	type: "boolean",
+	default: true,
+	env: "PI_PWSH",
+	ui: {
+		tab: "shell",
+		group: "Eval & Runtimes",
+		label: "PowerShell Eval Backend",
+		description: "Allow the eval tool to dispatch PowerShell cells to the persistent pwsh session (requires pwsh on PATH)",
+	},
+});
+
 export const cfgEvalAutoProvision = register({
 	id: "eval.autoProvision",
 	type: "boolean",

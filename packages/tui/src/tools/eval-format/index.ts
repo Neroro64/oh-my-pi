@@ -13,5 +13,7 @@ export function formatEvalCodeForDisplay(source: string, language: EvalLanguage)
 			return formatJavaScriptForDisplay(source);
 		case "python":
 			return formatPythonForDisplay(source);
+		case "pwsh":
+			return source;
 	}
 }

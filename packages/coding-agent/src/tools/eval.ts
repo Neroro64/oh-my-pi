@@ -11,7 +11,7 @@ import { formatBackgroundNotice } from "@oh-my-pi/pi-tui/tools/bash";
 import { parseConfiguredThinkingLevel } from "@oh-my-pi/pi-tui/thinking";
 import { isRecord, prompt } from "@oh-my-pi/pi-utils";
 import { raceJobSettlement, resolveAutoBackgroundWaitMs } from "../async";
-import { jsBackend, pythonBackend } from "../eval";
+import { jsBackend, pwshBackend, pythonBackend } from "../eval";
 import type { ExecutorBackend, ExecutorBackendResult } from "../eval/backend";
 import { EVAL_TIMEOUT_PAUSE_OP, EVAL_TIMEOUT_RESUME_OP } from "../eval/bridge-timeout";
 import { IdleTimeout } from "../eval/idle-timeout";
@@ -62,15 +62,17 @@ import { cfgTaskMaxRecursionDepth } from "../task/settings";
 import { cfgToolsMaxTimeout, cfgToolsSpeculativeExecutionEnabled } from "./settings";
 
 /** Language tokens the eval tool accepts, in stable display order. */
-export type EvalLanguageToken = "py" | "js";
-const EVAL_LANGUAGE_ORDER: readonly EvalLanguageToken[] = ["py", "js"];
+export type EvalLanguageToken = "py" | "js" | "pwsh";
+const EVAL_LANGUAGE_ORDER: readonly EvalLanguageToken[] = ["py", "js", "pwsh"];
 const EVAL_LANGUAGE_RUNTIME: Record<EvalLanguageToken, string> = {
 	py: '"py": IPython',
 	js: '"js": Bun',
+	pwsh: '"pwsh": PowerShell 7',
 };
 const EVAL_LANGUAGE_NAME: Record<EvalLanguageToken, string> = {
 	py: "Python",
 	js: "JavaScript",
+	pwsh: "PowerShell",
 };
 
 /** Join names as an English "or" list: ["A"]→"A", ["A","B"]→"A or B", 3+→"A, B, or C". */
@@ -96,6 +98,7 @@ function enabledEvalLanguages(backends: EvalBackendsAllowance): EvalLanguageToke
 	const allowed: Record<EvalLanguageToken, boolean> = {
 		py: backends.python,
 		js: backends.js,
+		pwsh: backends.pwsh,
 	};
 	return EVAL_LANGUAGE_ORDER.filter(lang => allowed[lang]);
 }
@@ -115,7 +118,7 @@ const evalCellCommonFields = {
  * copy per session so disabled backends are never advertised to the model.
  */
 export const evalSchema = type({
-	language: type("'py' | 'js'").describe(describeLanguageField(EVAL_LANGUAGE_ORDER)),
+	language: type("'py' | 'js' | 'pwsh'").describe(describeLanguageField(EVAL_LANGUAGE_ORDER)),
 	...evalCellCommonFields,
 });
 export type EvalToolParams = typeof evalSchema.infer;
@@ -200,6 +203,7 @@ function formatDisplayJson(value: unknown, canSpill: boolean): FormattedDisplayJ
 export interface EvalToolDescriptionOptions {
 	py?: boolean;
 	js?: boolean;
+	pwsh?: boolean;
 	/**
 	 * Parent spawn policy (`getSessionSpawns`). `true`/omitted means unrestricted,
 	 * `false`/`""` hides `agent()`, and a comma list drives the advertised default.
@@ -229,6 +233,7 @@ function evalTemplateContext(options: EvalToolDescriptionOptions) {
 	return {
 		py: options.py ?? true,
 		js: options.js ?? true,
+		pwsh: options.pwsh ?? true,
 		evalTools: options.evalTools ?? true,
 		eagerDelegation: options.eagerDelegation ?? true,
 		waitTool: options.waitTool ?? true,
@@ -320,6 +325,7 @@ async function resolveBackend(
 	const backends = resolveEvalBackends(session);
 	const allowPy = backends.python;
 	const allowJs = backends.js;
+	const allowPwsh = backends.pwsh;
 
 	if (language === "python") {
 		if (!allowPy) throw new ToolError("Python backend is disabled (PI_PY=0 or eval.py = false).");
@@ -334,12 +340,24 @@ async function resolveBackend(
 		}
 		return { backend: pythonBackend };
 	}
+	if (language === "pwsh") {
+		if (!allowPwsh) throw new ToolError("PowerShell backend is disabled (PI_PWSH=0 or eval.pwsh = false).");
+		const available = await pwshBackend.isAvailable(session, probeOpts);
+		throwIfAborted(probeOpts?.signal);
+		if (!available) {
+			throw new ToolError(
+				'PowerShell backend is unavailable: install PowerShell 7 (pwsh) on PATH to use language: "pwsh".',
+			);
+		}
+		return { backend: pwshBackend };
+	}
 	if (!allowJs) throw new ToolError("JavaScript backend is disabled (PI_JS=0 or eval.js = false).");
 	return { backend: jsBackend };
 }
 function formatEvalInputLanguage(value: string): string {
 	if (value === "py" || value === "python") return "python";
 	if (value === "js" || value === "javascript") return "javascript";
+	if (value === "pwsh" || value === "powershell") return "powershell";
 	return value;
 }
 
@@ -393,6 +411,7 @@ export class EvalTool implements AgentTool<typeof evalSchema> {
 		return {
 			py: backends.python,
 			js: backends.js,
+			pwsh: backends.pwsh,
 			spawns: depthAllowsSpawning ? (session.getSessionSpawns?.() ?? "*") : false,
 			autoBackgroundEnabled: cfgEvalAutoBackgroundEnabled.get(session.settings),
 			evalTools: cfgEvalToolsEnabled.get(session.settings),
@@ -499,7 +518,7 @@ export class EvalTool implements AgentTool<typeof evalSchema> {
 	 * session) fall back to the shipped defaults (py/js; rb/jl are opt-in).
 	 */
 	#enabledLanguages(): EvalLanguageToken[] {
-		return this.session ? enabledEvalLanguages(resolveEvalBackends(this.session)) : ["py", "js"];
+		return this.session ? enabledEvalLanguages(resolveEvalBackends(this.session)) : ["py", "js", "pwsh"];
 	}
 
 	constructor(
@@ -528,7 +547,7 @@ export class EvalTool implements AgentTool<typeof evalSchema> {
 		const session = this.session;
 		const excludeWebP = webpExclusionForModel(session.getActiveModel?.());
 
-		const cellLanguage: EvalLanguage = params.language === "py" ? "python" : "js";
+		const cellLanguage: EvalLanguage = params.language === "py" ? "python" : params.language === "js" ? "js" : "pwsh";
 		// Bound backend discovery by the eval cell's own timeout and abort signal:
 		// the cell IdleTimeout is armed only later in #runCells, so a hung runtime
 		// probe would otherwise wedge the whole turn (issue #9466).

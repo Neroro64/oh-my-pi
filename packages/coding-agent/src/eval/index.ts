@@ -1,5 +1,6 @@
 export * from "./backend";
 export { default as jsBackend } from "./js";
+export { default as pwshBackend } from "./pwsh";
 export { default as pythonBackend } from "./py";
 export * from "./preludes";
 export * from "./state";

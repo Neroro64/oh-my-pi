@@ -9,7 +9,7 @@ import { normalizePackageRequirements } from "./package-requirements";
 
 /** Code-only eval input; standalone percent commands prepare files or dependencies. */
 export interface EvalSourceInput {
-	language: "py" | "js";
+	language: "py" | "js" | "pwsh";
 	code: string;
 }
 
@@ -25,7 +25,8 @@ export interface PreparedEvalSource {
 /**
  * Resolve standalone percent commands without downloads, execution, or source
  * echo. Python only intercepts `%load` (for internal URL paths); its `%pip`
- * runs through the runner's own magic in the kernel's interpreter.
+ * runs through the runner's own magic in the kernel's interpreter. PowerShell
+ * intercepts only `%load`; other `%…` cells pass through as plain code.
  */
 export async function prepareEvalSource(
 	input: EvalSourceInput,
@@ -34,7 +35,7 @@ export async function prepareEvalSource(
 ): Promise<PreparedEvalSource> {
 	throwIfAborted(signal);
 	const command = /^%(load|pip|bun|environment)(?:[ \t]+([\s\S]*))?$/.exec(input.code.trim());
-	if (!command || (input.language === "py" && command[1] !== "load")) return { code: input.code };
+	if (!command || (input.language !== "js" && command[1] !== "load")) return { code: input.code };
 	const rawArgs = command[2] ?? "";
 	if (/[\r\n]/.test(rawArgs)) {
 		throw new ToolError(

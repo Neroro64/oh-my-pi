@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added `pwsh` to the eval language union so PowerShell cells render with PowerShell highlighting and language labels.
+
 ### Fixed
 
 - Hidden thinking blocks no longer leave a faint "Thought for Ns" row in Tern's native transcript; only the live "Thinking…" indicator shows while the model reasons.

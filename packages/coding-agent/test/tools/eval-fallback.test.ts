@@ -161,6 +161,7 @@ describe("EvalTool language dispatch", () => {
 		expect(resolveEvalBackends(makeSession(settings))).toEqual({
 			python: true,
 			js: false,
+			pwsh: false,
 		});
 	});
 
